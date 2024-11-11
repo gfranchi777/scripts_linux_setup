@@ -1,0 +1,108 @@
+# Print Completed or Failed Based On The Last
+# Command Exit Status.
+function _print-cmd-status {
+  if [[ ${?} -eq 0 ]]; then
+    echo "${GREEN}Completed${WHITE}"
+  else
+    echo "${RED}Failed${WHITE}"
+  fi
+}
+
+# Print A Header Used For CLI Output
+# $1 = Header Text
+function _print-header {
+  local header_char="*"
+  local header_cols=65
+  local printed_header_char=0
+
+  echo -n "${YELLOW}"
+
+  while [[ ${printed_header_char} -lt ${header_cols} ]]; do
+    echo -n ${header_char}
+    ((printed_header_char++))
+  done
+  
+  echo "\n${1}"
+
+  printed_header_char=0
+
+  while [[ ${printed_header_char} -lt ${header_cols} ]]; do
+    echo -n ${header_char}
+    printed_header_char=$[${printed_header_char}+1]
+  done
+
+  echo "${WHITE}\n"
+}
+
+# Search starting at the current directory for a text pattern inside any files
+# in the current directory or it's sub directories
+# $1 = Search Pattern
+function find-in-files {
+  if [[ -z ${1} ]]; then
+    echo "[${RED}ERROR${WHITE}] No Search Pattern Passed To Command."
+    return 1
+  fi
+
+  find . -type f -exec grep -i ${1} '{}' \; -print
+}
+
+# Get a random quote from an online api.
+# If the api call fails, then default to the local ~/.quotes file.
+function get-random-quote {
+  local api_uri="https://zenquotes.io/api/random"
+
+  local status_code=$(curl --write-out %{http_code} --silent --output /dev/null ${api_uri})
+  
+  if [[ ${status_code} -eq 200 ]]; then
+    response=$(curl -s ${api_uri})
+
+    echo ${response} | jq -r '.[] | "\(.q)\n- \(.a)"' 
+  else
+    local quote_file=~/.quotes
+    local quote_index=$(shuf -i 1-$(sed -n '$=' ${quote_file}) -n 1)
+
+    if [[ $(expr ${quote_index} % 2) -eq 0 ]]; then
+      ((quote_index--))
+    fi
+  
+    sed -n "${quote_index}p;$((quote_index + 1))p" ${quote_file} | \
+      fold -sw $(echo -n ${PS1} | wc -m)
+    fi
+}
+
+# Update Permissions On Media Directories / Files
+function update-media-permissions {
+  base_dir=/mnt
+  media_dirs=(movies_0-k movies_l-s movies_t-z tv videos)
+
+  find ${base_dir}/* -type d -exec chmod 700 '{}' \;
+
+  for dir in ${media_dirs}; do
+    echo -n "Refreshing ${dir}..."
+
+    find ${base_dir}/${dir} -type f -exec sh -c 'sudo chattr -i "${1}" && chmod 400 "${1}" && sudo chattr +i "${1}"' _ '{}' \;
+
+    echo "Done."
+  done
+}
+
+# Update Server OS
+function update-os {
+  sudo apt-get -y update && \
+  sudo apt-get -y upgrade && \
+  sudo apt-get -y autoremove && \
+  sudo apt-get -y autoclean && \
+  sudo apt-get -y full-upgrade && \
+  sudo do-release-upgrade
+}
+
+# Update The Server OS And Update Permissions On Media Directories / Files
+function update-server {
+  printf "Server Update: $(date)\n\n"
+
+  printf "Updating O/S:\n\n"
+  update-os
+
+  printf "\nUpdating Media Permissions:\n\n"
+  update-media-permissions
+}
