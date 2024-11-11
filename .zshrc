@@ -1,3 +1,7 @@
+if [[ -f ~/.git_functions ]]; then
+  . ~/.git_functions
+fi
+
 if [[ -f ~/.zsh_variables ]]; then
   . ~/.zsh_variables
 fi
