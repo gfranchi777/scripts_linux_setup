@@ -12,6 +12,12 @@ export RED="\033[0;31m"
 export WHITE="\033[0;29m"
 export YELLOW="\033[0;33m"
 
+set termguicolors
 setopt PROMPT_SUBST
-export PROMPT='%F{red}[%n:%m]%F{green}[%~]%F{yellow}%F{white}
-$ '
+
+autoload -Uz vcs_info
+precmd() { vcs_info }
+zstyle ':vcs_info:git*' formats '%F{white} : %F{yellow}%b%F{white}'
+
+PROMPT='$(build-prompt)
+%F{white}> %f'

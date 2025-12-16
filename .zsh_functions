@@ -1,11 +1,57 @@
+# Return 0 if the terminal is likely able to display emoji, 1 otherwise.
+function can_display_emoji {
+  if [[ "${FORCE_EMOJI}" == "0" ]]; then
+    return 1
+  fi
+
+  if [[ "${FORCE_EMOJI}" == "1" ]]; then
+    return 0
+  fi
+
+  local locale=${LC_ALL:-${LC_CTYPE:-${LANG:-}}}
+
+  if [[ -z ${locale} ]]; then
+    return 1
+  fi
+
+  if [[ "${locale}" != *UTF-8* && "${locale}" != *utf8* ]]; then
+    return 1
+  fi
+
+  if [[ -z "${TERM}" || "${TERM}" == "dumb" ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
 # Print Completed or Failed Based On The Last
 # Command Exit Status.
 function _print-cmd-status {
-  if [[ ${?} -eq 0 ]]; then
-    echo "${GREEN}Completed${WHITE}"
+  local last_status=${?}
+  local success_message
+  local failure_message
+
+  if [[ ${1} == "txt" ]]; then
+    success_message="Completed"
+    failure_message="Failed"
   else
-    echo "${RED}Failed${WHITE}"
+    if can_display_emoji; then
+      success_message="✅"
+      failure_message="❌"
+    else
+      success_message="Completed"
+      failure_message="Failed"
+    fi
   fi
+
+  if [[ ${last_status} -eq 0 ]]; then
+    echo "${success_message}${WHITE}."
+  else
+    echo "${failure_message}${WHITE}."
+  fi
+
+  return ${last_status}
 }
 
 # Print A Header Used For CLI Output
@@ -32,6 +78,34 @@ function _print-header {
   done
 
   echo "${WHITE}\n"
+}
+
+function build_prompt() {
+  local day=$(date '+%a %b %d %Y')
+  local time=$(date '+%H:%M')
+
+  #local left="%F{white}[%F{red}%n%F{white}@%F{red}${HOST}%F{white} : %F{green}%~${vcs_info_msg_0_}%F{white}] "
+  #local right=" %F{white}[%F{cyan}${day}, ${time}%F{white}]"
+  
+  local left="%F{white}[%F{red}%n%F{white}@%F{red}${HOST}%F{white} : %F{red}%~${vcs_info_msg_0_}%F{white}] "
+  local right=" %F{white}[%F{red}${day}, ${time}%F{white}]"
+  
+  local rendered_left=$(print -P "$left")
+  local rendered_right=$(print -P "$right")
+  
+  local plain_left=$(echo "$rendered_left" | sed 's/\x1b\[[0-9;]*m//g')
+  local plain_right=$(echo "$rendered_right" | sed 's/\x1b\[[0-9;]*m//g')
+  
+  local total_width=$(tput cols)
+  local fill_len=$(( total_width - ${#plain_left} - ${#plain_right} ))
+
+  if [ $fill_len -lt 0 ]; then
+    fill_len=0
+  fi
+
+  local fill=$(printf '%*s' $fill_len '' | tr ' ' '-')
+
+  print -P "$left$fill$right"
 }
 
 # Search starting at the current directory for a text pattern inside any files
@@ -68,4 +142,20 @@ function get-random-quote {
     sed -n "${quote_index}p;$((quote_index + 1))p" ${quote_file} | \
       fold -sw $(echo -n ${PS1} | wc -m)
     fi
+}
+
+function os-update {
+  echo -n "Updating OS using apt..."  
+  
+  if apt update >/dev/null 2>&1 && apt full-upgrade -y >/dev/null 2>&1 && apt autoremove -y >/dev/null 2>&1; then
+    _print-cmd-status txt
+  else
+    _print-cmd-status txt
+    echo "${?}"
+  fi
+}
+
+# Automate The Daily Update Tasks
+function setup-env {
+ os-update 
 }
