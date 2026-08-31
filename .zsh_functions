@@ -144,18 +144,33 @@ function get-random-quote {
     fi
 }
 
-function os-update {
-  echo -n "Updating OS using apt..."  
-  
-  if apt update >/dev/null 2>&1 && apt full-upgrade -y >/dev/null 2>&1 && apt autoremove -y >/dev/null 2>&1; then
-    _print-cmd-status txt
-  else
-    _print-cmd-status txt
-    echo "${?}"
-  fi
+# Update Permissions On Media Directories / Files
+function update-media-permissions {
+  base_dir=/mnt
+  media_dirs=(movies_0-k movies_l-s movies_t-z tv videos)
+
+  find ${base_dir}/* -type d -exec chmod 700 '{}' \;
+
+  for dir in ${media_dirs}; do
+    echo -n "Refreshing ${dir}..."
+
+    find ${base_dir}/${dir} -type f -exec sh -c 'sudo chattr -i "${1}" && chmod 400 "${1}" && sudo chattr +i "${1}"' _ '{}' \;
+
+    echo "Done."
+  done
+}
+
+# Update Server OS
+function update-os {
+  sudo apt-get -y update && \
+  sudo apt-get -y upgrade && \
+  sudo apt-get -y autoremove && \
+  sudo apt-get -y autoclean && \
+  sudo apt-get -y full-upgrade && \
+  sudo do-release-upgrade
 }
 
 # Automate The Daily Update Tasks
 function setup-env {
- os-update 
+  update-os
 }

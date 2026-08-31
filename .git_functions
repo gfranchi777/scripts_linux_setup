@@ -1,0 +1,89 @@
+# Commit All Changed Files To Git
+# $1 = Commit Message
+function git-commit {
+  if [[ ! -z ${1} ]]; then
+    git add .
+    git commit -S -m "${1}"
+  else
+    echo "[ERROR] No Commit Message Specified."
+  fi
+}
+
+# Create A Commit And Push It To The Remote Repository
+# $1 = Commit Message
+function git-push {
+  if [[ ! -z ${1} ]]; then
+    git add .
+    git commit -S -m "${1}"
+    git push --set-upstream origin $(git branch --show-current)
+  else
+    echo "[ERROR] No Commit Message Specified."
+  fi
+}
+
+# Update Branches In Git Repos
+# $1 = all
+function git-update-branches {
+  _print-header "Updating Local Git Branches"
+
+  if [[ ! (${1} == "project" || ${1} == "all") ]]; then
+    echo "SYNTAX: git-update-branch [all|project]"
+    return 1
+  fi
+
+  local start_dir=$(pwd)
+  local logs_dir=${HOME}/.git-update
+  mkdir -p "${logs_dir}"
+
+  local width_project=60
+  local width_repo=50
+  local width_branches=32
+
+  printf "${YELLOW}%b%-${width_project}b %b%-${width_repo}b %b%-${width_branch}b %b%b\n${WHITE}" " " "Project" " " "Repo" " " "Branch" " " "Status${WHITE}"
+  
+  for git_repo_dir in "${GIT_REPO_DIRS[@]}"; do
+    local git_project_dirs=($(find "${git_repo_dir}" -maxdepth 1 -type d \
+                                   ! -path "${git_repo_dir}" ! -name ".*" -prune))
+
+    for project_dir in "${git_project_dirs[@]}"; do
+      local project_name=$(basename "${project_dir}")
+      local project_log_dir="${logs_dir}/${project_name}"
+      mkdir -p "${project_log_dir}"
+
+      if [[ -d "${project_dir}" && -n "$(ls -A "${project_dir}")" ]]; then
+        local git_repo_dirs=($(find "${project_dir}" -maxdepth 1 -type d \
+                               ! -path "${project_dir}" ! -name ".*" -prune))
+      else
+        continue
+      fi
+
+      for repo_dir in "${git_repo_dirs[@]}"; do
+        local repo_name=$(basename "${repo_dir}")
+        local log_file="${project_log_dir}/${repo_name}.log"
+
+        local out_repo="${repo_name}"
+
+        if [[ ! -d "${repo_dir}/.git" ]]; then
+          continue
+        fi
+
+        local local_branches=($(git -C "${repo_dir}" for-each-ref --format '%(refname:short)' refs/heads/))
+        
+        for local_branch in "${local_branches[@]}"; do
+          local branch_name="${local_branch}"
+          
+          git -C "${repo_dir}" switch "${local_branch}" &> /dev/null
+          git -C "${repo_dir}" pull &>> "${log_file}"
+          
+          if [[ $? -eq 0 ]]; then
+            local update_status="  ✅${WHITE}"
+          else
+            local update_status="  ❌${WHITE}"
+          fi
+
+          printf "%b%-40b %b%-50b %b%-30b %b%-30b\n" " " "${project_name}" " " "${repo_name}" " " "${branch_name}" " " "${update_status}"
+        done
+      done
+    done
+  done
+}
